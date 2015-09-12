@@ -1,13 +1,15 @@
 __author__ = 'Paul'
 
 import cherrypy
-import pystache
+from pystache import Renderer
 import getter
 
 # get various modules from getter module so we are not double-importing
 datetime = getter.datetime
 loader = getter.loader
 os = getter.os
+csv = getter.csv
+renderer = Renderer()
 
 # below is the Root class for the Server I am running (it is the controller)
 class Server(object):
@@ -28,12 +30,11 @@ class Server(object):
         :return str: The string response text of the request
         """
         # the mustache template to populate and send as a response
-        index_file = open(os.path.join('front_end', 'index.html'), 'r').read()
         # if there is not access_token in the session, then we are logged in
         if 'access_token' not in cherrypy.session:
             # if not logged in return blank screen with login message
-            return pystache.render(
-                index_file,
+            return renderer.render_path(
+                os.path.join('front_end', 'index.html'),
                 {
                     'messages': [],
                     'users': [],
@@ -62,8 +63,8 @@ class Server(object):
                 gr['group_inp'] = True
                 break
         if not user_access_to_group:
-            return pystache.render(
-                index_file,
+            return renderer.render_path(
+                os.path.join('front_end', 'index.html'),
                 {
                     'messages': [],
                     'users': [],
@@ -72,12 +73,16 @@ class Server(object):
                     'groups': []
                 }
             )
-        if 'loaded' not in cherrypy.session:
-            cherrypy.session['loaded'] = 'loaded'
+        if ('loaded%s' % group) not in cherrypy.session:
+            cherrypy.session['loaded%s' % group ] = 'loaded'
             # let's load in messages to csv from GroupMe below
-            new_messages = loader.handle_messages_to_csv(cherrypy.session['access_token'], group)
+            message_counts = loader.handle_messages_to_csv(cherrypy.session['access_token'], group)
             # let's load in messages from csv to MongoDB
-            loader.load_to_mongo(cherrypy.session['access_token'], 'messages', group, getter.session.post, new_messages)
+            messages_filename = os.path.join('data_files', 'messages', '%s.csv' % group)
+            with open(messages_filename, 'rb') as messages_file:
+                csv_messages = list(csv.DictReader(messages_file, delimiter = ','))
+                new_messages = csv_messages[: message_counts['recent_messages']] + csv_messages[message_counts['stored_messages']: message_counts['historical_messages']]
+                loader.load_to_mongo(cherrypy.session['access_token'], 'messages', group, getter.session.post, new_messages)
         # process parameters below-> if pictures_only is 'on', then it is True
         pictures_only = True if pictures_only == 'on' else False
         # if following string inputs are empty strings, then we want them to be None for processing when getting messages
@@ -92,7 +97,8 @@ class Server(object):
         # once parameters set up-> now we can get messages
         messages = getter.get_messages(
             group,
-            int(page_num) * 20, 20,
+            int(page_num) * 20,
+            20,
             user,
             start_date_d,
             end_date_d,
@@ -125,8 +131,8 @@ class Server(object):
         # let's get pagination below
         pages = Server.get_pagination_details(messages['count'], int(page_num), 20)
         # populate template with the data below and render it
-        return pystache.render(
-            index_file,
+        return renderer.render_path(
+            os.path.join('front_end', 'index.html'),
             {
                 'messages': messages['messages'],
                 'users': users,
@@ -140,6 +146,7 @@ class Server(object):
             }
         )
 
+
     @cherrypy.expose
     def login(self):
         """
@@ -149,6 +156,7 @@ class Server(object):
         raise cherrypy.HTTPRedirect(
             'https://oauth.groupme.com/oauth/authorize?client_id=8SvGBpekTKCh51Mk8NQ42lFVIyjyXleLmPmW3iPBMhMbjid9'
         )
+
 
     @cherrypy.expose
     def post_login(self, access_token = ''):
@@ -200,6 +208,34 @@ class Server(object):
             pages.append({'label': 'Next', 'page_num': page_num + 10 if page_num + 10 < num_pages_possible else num_pages_possible})
             pages.append({'label': 'Last', 'page_num': num_pages_possible})
         return pages
+
+
+    @cherrypy.expose
+    def pictures(self, group = None):
+        """
+        Process a 'pictures' GET request
+            - Get all pictures for a certain group
+        :param str group: The group to get the pictures for
+        :return str: The string response text of the request
+        """
+        if not group:
+            raise cherrypy.HTTPRedirect('/index')
+        pictures = getter.get_pictures(group)
+        formatted_pictures = []
+        for num in range(0, len(pictures)):
+            if num % 10 == 0:
+                formatted_pictures.append({
+                    'row_pics': []
+                })
+            formatted_pictures[-1]['row_pics'].append(pictures[num])
+        return renderer.render_path(
+            os.path.join('front_end', 'pictures.html'),
+            {
+                'pics': formatted_pictures
+            }
+        )
+
+
 
 if __name__ == '__main__':
     # configure the server and start it up below

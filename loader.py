@@ -75,10 +75,8 @@ def request_messages_for_csv(message_writer, picture_writer, token, group_id, us
     :param dict users: key-value pair dictionary of groups (ids to names map which we are updating)
     :param int message_id:
     :param bool most_recent: Indicator of whether we get the most
-    :return list: List of new messages just received from GroupMe
+    :return int: Number of messages requested and received from GroupMe API
     """
-    # return list below- contains all new messages just received from GroupMe
-    new_messages = []
     # update request parameters for GroupMe API- if most recent, get after message id; if not most recent, get before message id
     request_params = {'token': token, 'limit': 100}
     if message_id and most_recent:
@@ -87,16 +85,16 @@ def request_messages_for_csv(message_writer, picture_writer, token, group_id, us
         request_params['before_id'] = message_id
     # error- can't get most recent if there is no message id-> which indicates we don't have any messages
     elif (not message_id) and most_recent:
-        return new_messages
+        return 0
     messages_request = session.get('https://api.groupme.com/v3/groups/%s/messages' % group_id, params = request_params)
     # if we can't decode json, then there are no more messages to retrieve
     try:
         response_data = messages_request.json()['response']
     except ValueError:
-        return new_messages
+        return 0
     # if no messages-> let's exit function
     if response_data['count'] == 0:
-        return new_messages
+        return 0
     message_id = None
     for message in response_data['messages']:
         attachments = message['attachments']
@@ -123,12 +121,12 @@ def request_messages_for_csv(message_writer, picture_writer, token, group_id, us
             'pictures': ' '.join(pictures)
         }
         message_writer.writerow(message_row)
-        new_messages.append(message_row)
+    message_count = len(response_data['messages'])
     # indicator that there are more messages-> number of messages > 5 and there are message_id != None (preset)
-    if message_id and len(response_data['messages']) > 5:
+    if message_id and message_count > 5:
         # add new messages from this GroupMe request to the new messages from the next request
-        return new_messages + request_messages_for_csv(message_writer, picture_writer, token, group_id, users, message_id, most_recent)
-    return new_messages
+        message_count += request_messages_for_csv(message_writer, picture_writer, token, group_id, users, message_id, most_recent)
+    return message_count
 
 
 def handle_messages_to_csv(token, group_id):
@@ -136,10 +134,13 @@ def handle_messages_to_csv(token, group_id):
     Instead of overloading the GroupMe API, we are going to intelligently load all messages not already loaded into the CSV through this method
     :param str token: The token to access the GroupMe api with
     :param str group_id: The id of the group that the user wants to get messages for
-    :return list: List of new messages that were received from GroupMe and loaded into CSV
+    :return dict: Message counts of messages just loaded and already stored in csv
     """
-    # store in new_messages all the messages we just loaded from GroupMe
-    new_messages = []
+    message_counts = {
+        'recent_messages': 0,
+        'stored_messages': 0,
+        'historical_messages': 0
+    }
     # get file names below, Note: we are writing to temp files then renaming them at the end of the function
     messages_filename = os.path.join('data_files', 'messages', '%s.csv' % group_id)
     pictures_filename = os.path.join('data_files', 'pictures', '%s.csv' % group_id)
@@ -166,14 +167,17 @@ def handle_messages_to_csv(token, group_id):
                 csv_messages_reader = csv.DictReader(old_messages_file, delimiter = ',')
                 # most_recent only used for finding the first message in the csv reader
                 most_recent = True
+                old_message_count = 0
                 for row in csv_messages_reader:
                     # the first message is the most recent one we got (we will keep it that way by searching for messages after the first message)
                     if most_recent:
-                        new_messages += request_messages_for_csv(csv_messages_writer, csv_pictures_writer, token, group_id, users, row['id'], True)
+                        message_counts['recent_messages'] = request_messages_for_csv(csv_messages_writer, csv_pictures_writer, token, group_id, users, row['id'], True)
                         most_recent = False
                     # then continue writing all the messages found in the body
                     csv_messages_writer.writerow(row)
+                    old_message_count += 1
                     last_message = row
+                message_counts['stored_messages'] = old_message_count
                 # once done reading old file, let's delete it
             os.remove(messages_filename)
         # just write everything to the csv pictures, nothing fancy here (previous function loads more recent pictures than body of csv)
@@ -184,7 +188,7 @@ def handle_messages_to_csv(token, group_id):
             # once done reading old file, let's delete it
             os.remove(pictures_filename)
         # lastly, we try to load all messages that occurred before the last message (most distant in past)
-        new_messages += request_messages_for_csv(
+        message_counts['historical_messages'] = request_messages_for_csv(
             csv_messages_writer,
             csv_pictures_writer,
             token,
@@ -202,7 +206,8 @@ def handle_messages_to_csv(token, group_id):
         csv_users_writer.writeheader()
         for user_id, user_name in users.iteritems():
             csv_users_writer.writerow({'id': user_id, 'name': user_name})
-    return new_messages
+    return message_counts
+
 
 def load_to_mongo (token, collection, group_id, request_method, data):
     """
@@ -238,6 +243,7 @@ def load_to_mongo (token, collection, group_id, request_method, data):
             ', Group number, %s' % (group_id if group_id else '')
         )
 
+
 def load_csv_to_mongo (token, collection, group_id):
     """
     Load Data saved locally in CSV into MongoLab
@@ -252,6 +258,7 @@ def load_csv_to_mongo (token, collection, group_id):
         with open(file_path, 'rb') as collection_file:
             csv_collection_reader = csv.DictReader(collection_file, delimiter = ',')
             load_to_mongo(token, collection, group_id, session.put, list(csv_collection_reader))
+
 
 if __name__ == '__main__':
     # ensure data_files folder exists for storing data
@@ -280,3 +287,5 @@ if __name__ == '__main__':
     if args.messagesMongo:
         for collection_name in ['messages', 'pictures', 'members']:
             load_csv_to_mongo(args.access_token, collection_name, args.messagesMongo)
+    # session.get('https://api.groupme.com/v3/groups/2947318/messages', params={'before_id': 137607368696683000, 'limit': 100, 'token': 'fbac6d40180b0133df9626b3b369444a'})
+    # todo: handle unknowns

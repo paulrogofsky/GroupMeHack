@@ -11,6 +11,7 @@ mongo_lab_settings = loader.mongo_lab_settings
 os = loader.os
 csv = loader.csv
 
+
 def get_users(group_id, db = False):
     """
     Get the users for a given group
@@ -103,16 +104,18 @@ def get_messages(group_id, offset = 0, limit = 20, user_id = None, start_date = 
         mongo_query_params['user_id'] = user_id
     if start_date and not end_date:
         # get only dates above start_date if no end date
-        mongo_query_params['datetime'] = {'$gt': '%s' % calendar.timegm(start_date.timetuple())}
+        mongo_query_params['datetime'] = {'$gte': '%s' % calendar.timegm(start_date.timetuple())}
     elif end_date and start_date:
         # get dates between start and end date
         mongo_query_params['datetime'] = {
-            '$gt': '%s' % calendar.timegm(start_date.timetuple()),
-            '$lt': '%s' % calendar.timegm(end_date.timetuple())
+            '$gte': '%s' % calendar.timegm(start_date.timetuple()),
+            '$lte': '%s' % calendar.timegm(end_date.timetuple())
         }
     elif end_date and not start_date:
         # get dates before end date if no start date
-        mongo_query_params['datetime'] = {'$lt': '%s' % calendar.timegm(end_date.timetuple())}
+        mongo_query_params['datetime'] = {'$lte': '%s' % calendar.timegm(end_date.timetuple())}
+    else:
+        mongo_query_params['datetime'] = {'$gte': "0"}
     if message_contains:
         mongo_query_params['text'] = {'$regex': message_contains}
     if favorited_by:
