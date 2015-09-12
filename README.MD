@@ -19,4 +19,4 @@ of.
 
 The application is still in development and is by no means a finished project. I have just been using it with friends
 and can only serve the application locally in order to view our Group History and laugh about things. I used PyCharm,
-which is the greatest Python IDE known to man, for Python development.
+which is the greatest Python IDE known to man, for Python development. To run this application, just run 'python server.py' in the command terminal, and then browse localhost:8080 on your web browser of choice.
