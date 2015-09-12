@@ -9,13 +9,6 @@ import json
 
 # The Mongo Lab settings are below
 mongo_lab_settings = {
-    'email': 'progo94@aol.com',
-    'admin_name': 'flockteam',
-    'password': 'flockbros1',
-    'database_name': 'groupmehack',
-    'username': 'progo|Paul Rogofsky',
-    'user_name': 'paul',
-    'user_password': 'flowers12',
     'api': 'SM1eOEebZMzrZfmSb7u3LKXv7ZU0YUbY'
 }
 
@@ -287,5 +280,4 @@ if __name__ == '__main__':
     if args.messagesMongo:
         for collection_name in ['messages', 'pictures', 'members']:
             load_csv_to_mongo(args.access_token, collection_name, args.messagesMongo)
-    # session.get('https://api.groupme.com/v3/groups/2947318/messages', params={'before_id': 137607368696683000, 'limit': 100, 'token': 'fbac6d40180b0133df9626b3b369444a'})
     # todo: handle unknowns
