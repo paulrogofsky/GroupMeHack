@@ -16,3 +16,7 @@ are necessary since MongoLab's storage is very limited on a free account. Updati
 is an important problem that needs to be solved in this app. Lastly, the web application is served through a CherryPy
 server, which was very simple to setup. A user must login through GroupMe and can only view group data he is a member
 of.
+
+The application is still in development and is by no means a finished project. I have just been using it with friends
+and can only serve the application locally in order to view our Group History and laugh about things. I used PyCharm,
+which is the greatest Python IDE known to man, for Python development.
