@@ -1,0 +1,39 @@
+<html lang="en">
+	<head>
+        <meta charset="UTF-8">
+	    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+	</head>
+	<body>
+		<div class="container">
+			<div class="panel panel-default text-center">
+				<div class="panel-heading">
+                    <div class="panel-title">
+                        <h3>
+                            Your Group Me Pictures!
+                        </h3>
+                    </div>
+				</div>
+                <div class="panel-body">
+                    <div class="row">
+                        <div class="col-sm-12">
+                            <table class="table table-condensed table-striped table-bordered">
+                                <tbody>
+                                    {{# pics }}
+                                    <tr>
+                                        {{# row_pics }}
+                                        <td>
+                                            <img src="{{ url }}" width="100" height="100"/>
+                                        </td>
+                                        {{/ row_pics }}
+                                    </tr>
+                                    {{/ pics }}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+			</div>
+		</div>
+	</body>
+</html>
